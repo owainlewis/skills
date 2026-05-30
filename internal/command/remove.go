@@ -55,7 +55,7 @@ func Remove(ctx context.Context, e *Env, name string) error {
 	for _, entry := range m.Skills {
 		if len(entry.Skills) > 0 {
 			if contains(entry.Skills, name) {
-				entry.Skills = remove(entry.Skills, name)
+				entry.Skills = without(entry.Skills, name)
 				if len(entry.Skills) == 0 {
 					continue // entry no longer installs anything
 				}
@@ -77,7 +77,8 @@ func Remove(ctx context.Context, e *Env, name string) error {
 	return nil
 }
 
-func remove(ss []string, s string) []string {
+// without returns ss with every occurrence of s removed.
+func without(ss []string, s string) []string {
 	out := ss[:0:0]
 	for _, x := range ss {
 		if x != s {

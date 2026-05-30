@@ -45,45 +45,17 @@ func Add(ctx context.Context, e *Env, opts AddOpts) error {
 	defer cleanup()
 	names := skillNames(found)
 
-	// 1. Which skills.
-	filter := e.SkillFlag
-	if filter == nil && e.interactive() && len(names) > 1 {
-		filter, err = pickSkills(names)
-		if err != nil {
-			return err
-		}
-	}
-	if err := validateSkillNames(filter, names); err != nil {
+	filter, err := e.chooseSkills(names)
+	if err != nil {
 		return err
 	}
-
-	// 2. Which agents.
-	targetNames := e.AgentsFlag
-	if len(targetNames) == 0 && e.interactive() {
-		targetNames, err = pickAgents(reg.Names(), m.Targets())
-		if err != nil {
-			return err
-		}
+	targetNames, err := e.chooseAgents(reg, m)
+	if err != nil {
+		return err
 	}
-	if len(targetNames) == 0 {
-		targetNames = m.Targets()
-	}
-
-	// 3. Scope (not needed when --dir targets a literal directory).
-	scope := e.scopeFor(entry)
-	if e.DirOverride == "" {
-		if scope == "" {
-			if e.interactive() {
-				if scope, err = pickScope(); err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("scope required: pass --global or --project")
-			}
-		}
-		if scope != agents.Global && scope != agents.Project {
-			return fmt.Errorf("invalid scope %q (want global or project)", scope)
-		}
+	scope, err := e.chooseScope(entry)
+	if err != nil {
+		return err
 	}
 
 	targets, err := e.resolveTargets(reg, targetNames, scope)
@@ -114,6 +86,61 @@ func Add(ctx context.Context, e *Env, opts AddOpts) error {
 		return e.emitJSON(results)
 	}
 	return nil
+}
+
+// chooseSkills resolves which skills to install: --skill, else an interactive
+// pick (when there's more than one), else all. nil means all.
+func (e *Env) chooseSkills(names []string) ([]string, error) {
+	filter := e.SkillFlag
+	if filter == nil && e.interactive() && len(names) > 1 {
+		var err error
+		if filter, err = pickSkills(names); err != nil {
+			return nil, err
+		}
+	}
+	if err := validateSkillNames(filter, names); err != nil {
+		return nil, err
+	}
+	return filter, nil
+}
+
+// chooseAgents resolves the target agents: --agent, else an interactive pick
+// (defaults pre-checked), else the manifest defaults.
+func (e *Env) chooseAgents(reg *agents.Registry, m *config.Manifest) ([]string, error) {
+	names := e.AgentsFlag
+	if len(names) == 0 && e.interactive() {
+		var err error
+		if names, err = pickAgents(reg.Names(), m.Targets()); err != nil {
+			return nil, err
+		}
+	}
+	if len(names) == 0 {
+		names = m.Targets()
+	}
+	return names, nil
+}
+
+// chooseScope resolves the install scope: --global/--project or the entry's
+// scope, else an interactive pick, else an error. Scope is irrelevant when --dir
+// targets a literal directory, so it is returned unvalidated in that case.
+func (e *Env) chooseScope(entry config.Entry) (string, error) {
+	scope := e.scopeFor(entry)
+	if e.DirOverride != "" {
+		return scope, nil
+	}
+	if scope == "" {
+		if !e.interactive() {
+			return "", fmt.Errorf("scope required: pass --global or --project")
+		}
+		var err error
+		if scope, err = pickScope(); err != nil {
+			return "", err
+		}
+	}
+	if scope != agents.Global && scope != agents.Project {
+		return "", fmt.Errorf("invalid scope %q (want global or project)", scope)
+	}
+	return scope, nil
 }
 
 func recordAndReport(e *Env, m *config.Manifest, entry config.Entry, results []Result) {
