@@ -1,13 +1,17 @@
 # skills
 
-A minimalist, agent-first installer for [agent skills](https://github.com/owainlewis/skills) —
-reusable instruction directories (a folder containing `SKILL.md`) that extend coding
-agents like Claude Code.
+A minimalist, agent-first installer for **agent skills** — reusable instruction
+directories (a folder containing `SKILL.md`) that extend coding agents like Claude Code,
+Codex, Hermes, and others.
 
 It is a single static Go binary. A declarative `skills.toml` is the source of truth, and
-`skills sync` converges the installed set to match — so an agent can manage skills with one
+`skills sync` converges every target to match — so an agent can manage skills with one
 deterministic command. **Private repositories work out of the box**: `skills` shells out to
 your `git`, inheriting your existing SSH keys, credential helper, and tokens.
+
+It installs the same skills into **multiple agents at once** (e.g. `~/.claude/skills`,
+`~/.agents/skills`, `~/.hermes/skills`) and lets you pick which skills and which agents
+interactively, or non-interactively via flags.
 
 ## Install
 
@@ -26,36 +30,74 @@ Requires `git` on your PATH.
 ## Quick start
 
 ```sh
-skills init                                   # write ~/.claude/skills.toml
-skills add owainlewis/my-skills/skills/commit # add to manifest + install
-skills add git@github.com:me/private.git      # private repo via SSH — no extra config
-skills list                                   # show installed skills
-skills sync                                   # make installed match the manifest
-skills update                                 # pull latest commits for everything
+skills init                        # write ~/.claude/skills.toml
+skills add owainlewis/blueprint    # pick skills + agents interactively, then install
+skills list                        # show what's installed, per agent
+skills sync                        # make every target match the manifest
+skills update                      # pull latest commits everywhere
 ```
 
-## How it works
+Run in a terminal, `add` prompts you:
 
-Skills are declared in `~/.claude/skills.toml`:
+```
+skills add owainlewis/blueprint
+  → Skills to install:        [x] commit  [x] review  [ ] tdd ...   (all pre-checked)
+  → Install into which agents?[x] claude  [x] hermes  [x] agents    (your defaults pre-checked)
+  → Install scope:            (•) global   ( ) project
+```
+
+To run it non-interactively (scripts, CI, agents), pass the choices as flags:
+
+```sh
+skills add owainlewis/blueprint --agent claude,hermes --skill commit,review --global --yes
+```
+
+## Agents & scope
+
+A **target** is an agent plus a scope. Each agent has a global dir (under `$HOME`) and a
+project dir (relative to the current repo). Built-in agents:
+
+| agent | global | project |
+|---|---|---|
+| `claude` | `~/.claude/skills` | `./.claude/skills` |
+| `codex` | `~/.codex/skills` | `./.codex/skills` |
+| `hermes` | `~/.hermes/skills` | `./.hermes/skills` |
+| `pi` | `~/.pi/agent/skills` | `./.pi/agent/skills` |
+| `agents` | `~/.agents/skills` | `./.agents/skills` |
+
+Run `skills agents` to see them (and which are defaults). Add or override any agent in the
+manifest:
 
 ```toml
-dir = "~/.claude/skills"          # install destination (default)
-
-[[skill]]
-source = "owainlewis/my-skills"   # shorthand, full URL, or git@ SSH URL
-path   = "skills/commit"          # optional sub-directory within the repo
-ref    = "main"                   # optional branch, tag, or commit SHA
+[agents.myagent]
+global  = "~/.myagent/skills"
+project = ".myagent/skills"
 ```
 
-- `skills add`/`remove` edit this manifest for you.
-- `skills sync` clones each entry, installs every `SKILL.md` directory it finds, and records
-  resolved commits in a lockfile (`<dir>/.skills.lock.toml`). With `--prune` it also removes
-  installed skills no longer in the manifest. It is idempotent.
-- `skills update [name...]` re-resolves installed skills to the latest commit for their ref.
+`--global` / `--project` choose the scope; in a terminal you're asked when neither is given.
+
+## The manifest
+
+```toml
+default_targets = ["agents", "claude", "hermes"]   # pre-checked, and used when an entry omits targets
+
+[[skill]]
+source  = "owainlewis/blueprint"  # shorthand, full URL, or git@ SSH URL
+path    = "skills/commit"         # optional sub-directory within the repo
+ref     = "main"                  # optional branch, tag, or commit SHA
+skills  = ["commit", "review"]    # optional subset; omit to install all
+targets = ["claude", "hermes"]    # optional; omit to use default_targets
+scope   = "global"                # "global" (~/...) or "project" (current repo)
+```
+
+`skills add`/`remove` edit this for you. `skills sync` clones each entry, installs the
+selected skills into every target, and records resolved commits in a per-directory lockfile
+(`<dir>/.skills.lock.toml`). With `--prune` it removes installed skills no longer declared —
+including in agents you've dropped from `targets`. It is idempotent.
 
 A **skill** is any directory containing a `SKILL.md`. Its name comes from the `name:` field
-of that file's YAML frontmatter, falling back to the directory name. When a source has no
-`path`, `skills` installs the repo root (if it is a skill) or every skill found in `*/` and
+of that file's frontmatter, falling back to the directory name. When a source has no `path`,
+`skills` installs the repo root (if it is a skill) or every skill found in `*/` and
 `skills/*/`.
 
 ## Sources
@@ -74,24 +116,34 @@ of that file's YAML frontmatter, falling back to the directory name. When a sour
 | Command | Description |
 |---------|-------------|
 | `skills init` | Write a starter `skills.toml`. |
-| `skills add <source> [--ref r] [--path p] [--no-sync]` | Add to the manifest and install. |
-| `skills remove <name>` | Uninstall a skill and drop its manifest entry. |
-| `skills list [--json]` | List installed skills. |
-| `skills sync [--json] [--prune]` | Reconcile installed skills with the manifest. |
+| `skills add <source> [flags]` | Choose skills/agents/scope and install; record in the manifest. |
+| `skills remove <name>` | Uninstall a skill from every target and drop it from the manifest. |
+| `skills list [--json]` | List installed skills across all targets. |
+| `skills sync [--json] [--prune]` | Reconcile all targets with the manifest. |
 | `skills update [name...] [--json]` | Update installed skills to their latest commit. |
+| `skills agents [--json]` | List known agents and their directories. |
 
-Global flags: `--config <path>` (or `$SKILLS_CONFIG`), `--dir <path>` (or `$SKILLS_DIR`),
-`--json`, `--version`.
+Global flags: `--config <path>` (or `$SKILLS_CONFIG`), `--dir <path>` (install into one
+literal directory, bypassing agents; or `$SKILLS_DIR`), `--json`, `--version`.
+
+Selection flags: `--agent <a,b>`, `--skill <x,y>`, `--global`, `--project`, `--yes`.
 
 ### Agent use
 
-All commands are non-interactive, write data to stdout and logs to stderr, support `--json`,
-and return stable exit codes (`0` ok, `1` runtime error, `2` usage error). "Update our skills
-to latest" is simply:
+All commands write data to stdout and logs to stderr, support `--json`, and return stable
+exit codes (`0` ok, `1` runtime error, `2` usage error). Interactive prompts appear **only**
+in a real terminal with no `--json`/`--yes` and no selection flags — so agents and scripts
+get deterministic behavior. "Update our skills to latest" is simply:
 
 ```sh
 skills sync     # or: skills update
 ```
+
+## Notes
+
+This tool keeps a small dependency surface — TOML for the manifest and
+[`charmbracelet/huh`](https://github.com/charmbracelet/huh) for the interactive pickers. The
+pickers are only used in a terminal; non-interactive use never touches them.
 
 ## License
 

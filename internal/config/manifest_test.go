@@ -41,10 +41,22 @@ func TestManifestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestResolvedDirDefault(t *testing.T) {
-	m := &Manifest{}
-	if got := m.ResolvedDir(); got == DefaultDir || got == "" {
-		t.Fatalf("expected expanded home path, got %q", got)
+func TestResolvedDir(t *testing.T) {
+	if got := (&Manifest{}).ResolvedDir(); got != "" {
+		t.Fatalf("unset Dir should resolve to empty, got %q", got)
+	}
+	if got := (&Manifest{Dir: "~/skills"}).ResolvedDir(); got == "~/skills" || got == "" {
+		t.Fatalf("expected ~ expansion, got %q", got)
+	}
+}
+
+func TestDefaultTargets(t *testing.T) {
+	if got := (&Manifest{}).Targets(); len(got) == 0 {
+		t.Fatal("expected built-in default targets")
+	}
+	custom := &Manifest{DefaultTargets: []string{"claude"}}
+	if got := custom.Targets(); len(got) != 1 || got[0] != "claude" {
+		t.Fatalf("expected [claude], got %v", got)
 	}
 }
 

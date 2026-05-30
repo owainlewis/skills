@@ -1,7 +1,7 @@
-// Command skills installs and syncs agent skills from git repositories into a
-// local directory (default ~/.claude/skills). It is designed for agent control:
-// a declarative skills.toml is the source of truth and `skills sync` converges
-// the installed set to match.
+// Command skills installs and syncs agent skills from git repositories into one
+// or more agent directories (e.g. ~/.claude/skills, ~/.agents/skills). It is
+// designed for agent control: a declarative skills.toml is the source of truth
+// and `skills sync` converges every target to match.
 package main
 
 import (
@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/owainlewis/skills/internal/agents"
 	"github.com/owainlewis/skills/internal/command"
 	"github.com/owainlewis/skills/internal/gitx"
 )
@@ -29,16 +30,24 @@ Usage:
 Commands:
   init                     Write a starter skills.toml
   add <source>             Add a skill to the manifest and install it
-  remove <name>            Remove an installed skill
+  remove <name>            Remove an installed skill from all targets
   list                     List installed skills
   sync                     Reconcile installed skills with the manifest
   update [name...]         Update installed skills to their latest commit
+  agents                   List known agents and their directories
 
 Global flags:
   --config <path>          Manifest path (default ~/.claude/skills.toml, or $SKILLS_CONFIG)
-  --dir <path>             Install directory override (or $SKILLS_DIR)
+  --dir <path>             Install into one literal directory, bypassing agents (or $SKILLS_DIR)
   --json                   Machine-readable output on stdout
   --version                Print version and exit
+
+Selection flags (add; also override sync/update/list/remove targeting):
+  --agent <a,b>            Agent targets (comma-separated). Default: manifest default_targets
+  --skill <x,y>            Subset of skills to install (comma-separated). Default: all
+  --global                 Install into agents' global (~/...) directories
+  --project                Install into agents' project (current repo) directories
+  --yes                    Accept defaults without interactive prompts
 
 add flags:
   --ref <ref>              Branch, tag, or commit SHA
@@ -82,16 +91,33 @@ func run(args []string) int {
 		path       = fs.String("path", "", "sub-directory within the repo")
 		noSync     = fs.Bool("no-sync", false, "edit manifest without installing")
 		prune      = fs.Bool("prune", false, "remove skills absent from the manifest")
+		agentList  = fs.String("agent", "", "agent targets (comma-separated)")
+		skillList  = fs.String("skill", "", "subset of skills (comma-separated)")
+		global     = fs.Bool("global", false, "use agents' global directories")
+		project    = fs.Bool("project", false, "use agents' project directories")
+		yes        = fs.Bool("yes", false, "accept defaults without prompting")
 	)
 	positionals, err := parseInterspersed(fs, rest)
 	if err != nil {
 		return 2
 	}
 
+	scope, err := resolveScope(*global, *project)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 2
+	}
+
+	cwd, _ := os.Getwd()
 	env := &command.Env{
 		ConfigPath:  resolveConfigPath(*configPath),
+		ProjectRoot: cwd,
 		DirOverride: firstNonEmpty(*dir, os.Getenv("SKILLS_DIR")),
+		AgentsFlag:  splitList(*agentList),
+		Scope:       scope,
+		SkillFlag:   splitList(*skillList),
 		JSON:        *jsonOut,
+		Yes:         *yes,
 		Out:         os.Stdout,
 		Err:         os.Stderr,
 	}
@@ -119,6 +145,8 @@ func run(args []string) int {
 		err = command.Sync(ctx, env, *prune)
 	case "update":
 		err = command.Update(ctx, env, positionals)
+	case "agents":
+		err = command.Agents(env)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s\n", cmd, usage)
 		return 2
@@ -146,6 +174,33 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 		positionals = append(positionals, fs.Arg(0))
 		args = fs.Args()[1:]
 	}
+}
+
+func resolveScope(global, project bool) (string, error) {
+	switch {
+	case global && project:
+		return "", fmt.Errorf("--global and --project are mutually exclusive")
+	case global:
+		return agents.Global, nil
+	case project:
+		return agents.Project, nil
+	default:
+		return "", nil
+	}
+}
+
+func splitList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func arg(args []string, i int) string {

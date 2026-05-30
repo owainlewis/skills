@@ -9,15 +9,23 @@ import (
 const starterManifest = `# skills.toml — desired skills (the agent-control surface).
 # Edit this file, then run "skills sync" to converge the installed set.
 
-# Install destination (default: ~/.claude/skills).
-# dir = "~/.claude/skills"
+# Agents to install into by default. Run "skills agents" to list known agents.
+default_targets = ["agents", "claude", "hermes"]
+
+# Add or override agent directories (built-ins: agents, claude, codex, hermes, pi):
+# [agents.myagent]
+# global  = "~/.myagent/skills"
+# project = ".myagent/skills"
 
 # Add skills as [[skill]] blocks:
 #
 # [[skill]]
-# source = "owner/repo"        # shorthand, full URL, or git@ SSH (private repos)
-# path   = "skills/example"    # optional sub-directory within the repo
-# ref    = "main"              # optional branch, tag, or commit SHA
+# source  = "owner/repo"          # shorthand, full URL, or git@ SSH (private repos)
+# path    = "skills/example"      # optional sub-directory within the repo
+# ref     = "main"                # optional branch, tag, or commit SHA
+# skills  = ["commit", "review"]  # optional subset; omit to install all
+# targets = ["claude", "hermes"]  # optional; omit to use default_targets
+# scope   = "global"              # "global" (~/...) or "project" (current repo)
 `
 
 // Init writes a starter manifest if none exists.

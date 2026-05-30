@@ -17,6 +17,7 @@ type Installed struct {
 	Source      string `toml:"source"`
 	Path        string `toml:"path,omitempty"`
 	Ref         string `toml:"ref,omitempty"`
+	Agent       string `toml:"agent,omitempty"`
 	Commit      string `toml:"commit"`
 	InstalledAt string `toml:"installed_at"`
 }

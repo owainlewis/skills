@@ -1,4 +1,4 @@
-// Package manifest reads and writes the desired-state skills.toml and the
+// Package config reads and writes the desired-state skills.toml and the
 // machine-managed lockfile.
 package config
 
@@ -9,24 +9,37 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/owainlewis/skills/internal/agents"
+	"github.com/owainlewis/skills/internal/pathx"
 )
-
-// DefaultDir is the install destination when the manifest does not set one.
-const DefaultDir = "~/.claude/skills"
 
 // Entry is a single desired skill in the manifest.
 type Entry struct {
-	Source string `toml:"source"`
-	Path   string `toml:"path,omitempty"`
-	Ref    string `toml:"ref,omitempty"`
+	Source  string   `toml:"source"`
+	Path    string   `toml:"path,omitempty"`
+	Ref     string   `toml:"ref,omitempty"`
+	Skills  []string `toml:"skills,omitempty"`  // subset of discovered skills; empty = all
+	Targets []string `toml:"targets,omitempty"` // agent names; empty = DefaultTargets
+	Scope   string   `toml:"scope,omitempty"`   // "global" | "project"
 }
 
 // Manifest is the parsed skills.toml (desired state).
 type Manifest struct {
-	Dir    string  `toml:"dir,omitempty"`
-	Skills []Entry `toml:"skill,omitempty"`
+	DefaultTargets []string                `toml:"default_targets,omitempty"`
+	Agents         map[string]agents.Agent `toml:"agents,omitempty"`
+	Dir            string                  `toml:"dir,omitempty"` // legacy single-dir escape hatch
+	Skills         []Entry                 `toml:"skill,omitempty"`
 
 	path string // source file, for Save
+}
+
+// Targets returns the manifest's default target agents, falling back to the
+// built-in defaults.
+func (m *Manifest) Targets() []string {
+	if len(m.DefaultTargets) > 0 {
+		return m.DefaultTargets
+	}
+	return agents.DefaultTargets
 }
 
 // Load reads the manifest at path. A missing file yields an empty manifest
@@ -62,13 +75,13 @@ func (m *Manifest) Save() error {
 	return writeFileAtomic(m.path, []byte(b.String()))
 }
 
-// ResolvedDir returns the install directory with ~ expanded.
+// ResolvedDir returns the legacy single install directory with ~ expanded, or
+// "" when unset (the agent-target model is used instead).
 func (m *Manifest) ResolvedDir() string {
-	dir := m.Dir
-	if dir == "" {
-		dir = DefaultDir
+	if m.Dir == "" {
+		return ""
 	}
-	return expandHome(dir)
+	return pathx.ExpandHome(m.Dir)
 }
 
 // Upsert adds or replaces an entry keyed by (source, path), returning whether
@@ -86,15 +99,6 @@ func (m *Manifest) Upsert(e Entry) (replaced bool) {
 
 // Path returns the manifest's source path.
 func (m *Manifest) Path() string { return m.path }
-
-func expandHome(p string) string {
-	if p == "~" || strings.HasPrefix(p, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, strings.TrimPrefix(p, "~"))
-		}
-	}
-	return p
-}
 
 func writeFileAtomic(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
