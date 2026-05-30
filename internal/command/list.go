@@ -2,6 +2,9 @@ package command
 
 import (
 	"fmt"
+	"io"
+	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/owainlewis/skills/internal/agents"
@@ -70,6 +73,8 @@ func List(e *Env) error {
 		}
 	}
 
+	// --json keeps the full per-(skill, agent) detail; the human view collapses
+	// to one row per skill, listing its agents compactly.
 	if e.JSON {
 		return e.emitJSON(results)
 	}
@@ -77,18 +82,55 @@ func List(e *Env) error {
 		e.logf("no skills installed")
 		return nil
 	}
-	tw := tabwriter.NewWriter(e.Out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tAGENT\tSOURCE\tREF\tCOMMIT\tSTATUS")
+	return printGrouped(e.Out, results)
+}
+
+// printGrouped renders one row per skill: SKILL, AGENTS (missing ones prefixed
+// with !), SOURCE (or "(multiple)"), COMMIT (or "(mixed)").
+func printGrouped(w io.Writer, results []Result) error {
+	type group struct {
+		agents  []string
+		sources map[string]bool
+		commits map[string]bool
+	}
+	groups := map[string]*group{}
+	var order []string
 	for _, r := range results {
-		ref := r.Ref
-		if ref == "" {
-			ref = "-"
+		g := groups[r.Name]
+		if g == nil {
+			g = &group{sources: map[string]bool{}, commits: map[string]bool{}}
+			groups[r.Name] = g
+			order = append(order, r.Name)
 		}
-		agent := r.Agent
-		if agent == "" {
-			agent = "-"
+		label := r.Agent
+		if label == "" {
+			label = "-"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", r.Name, agent, r.Source, ref, shortCommit(r.Commit), r.Status)
+		if r.Status == "missing" {
+			label = "!" + label
+		}
+		g.agents = append(g.agents, label)
+		g.sources[r.Source] = true
+		g.commits[shortCommit(r.Commit)] = true
+	}
+	sort.Strings(order)
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "SKILL\tAGENTS\tSOURCE\tCOMMIT")
+	for _, name := range order {
+		g := groups[name]
+		sort.Strings(g.agents)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", name, strings.Join(g.agents, ","), one(g.sources, "(multiple)"), one(g.commits, "(mixed)"))
 	}
 	return tw.Flush()
+}
+
+// one returns the single key of m, or alt when there are several.
+func one(m map[string]bool, alt string) string {
+	if len(m) == 1 {
+		for k := range m {
+			return k
+		}
+	}
+	return alt
 }

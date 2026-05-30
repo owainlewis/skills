@@ -24,43 +24,21 @@ var version = "dev"
 
 const usage = `skills — install and sync agent skills from git
 
-Usage:
-  skills <command> [flags]
+Usage: skills <command> [flags]
 
 Commands:
-  init                     Write a starter skills.toml
-  add <source>             Add a skill to the manifest and install it
-  remove <name>            Remove an installed skill from all targets
-  list                     List installed skills
-  sync                     Reconcile installed skills with the manifest
-  update [name...]         Update installed skills to their latest commit
-  agents                   List known agents and their directories
+  init             Write a starter skills.toml
+  add <source>     Add a skill to the manifest and install it
+  remove <name>    Uninstall a skill from all agents
+  list             List installed skills
+  sync             Reconcile installed skills with the manifest
+  update [name…]   Update installed skills to their latest commit
+  agents           List known agents
 
-Global flags:
-  --config <path>          Manifest path (default ~/.claude/skills.toml, or $SKILLS_CONFIG)
-  --dir <path>             Install into one literal directory, bypassing agents (or $SKILLS_DIR)
-  --json                   Machine-readable output on stdout
-  --version                Print version and exit
+Common flags: --agent a,b  --skill x,y  --global|--project  --json  --yes  --prune
+Sources: owner/repo[/path], https URL, or git@host:owner/repo.git (private via your git auth)
 
-Selection flags (add; also override sync/update/list/remove targeting):
-  --agent <a,b>            Agent targets (comma-separated). Default: manifest default_targets
-  --skill <x,y>            Subset of skills to install (comma-separated). Default: all
-  --global                 Install into agents' global (~/...) directories
-  --project                Install into agents' project (current repo) directories
-  --yes                    Accept defaults without interactive prompts
-
-add flags:
-  --ref <ref>              Branch, tag, or commit SHA
-  --path <path>            Sub-directory within the repo
-  --no-sync                Edit the manifest without installing
-
-sync flags:
-  --prune                  Remove installed skills absent from the manifest
-
-Sources: owner/repo[/sub/path], full https URLs, or git@host:owner/repo.git
-(SSH and credential-helper auth make private repos work with no extra config).
-
-Exit codes: 0 ok, 1 runtime error, 2 usage error.`
+Docs: https://github.com/owainlewis/skills`
 
 func main() {
 	os.Exit(run(os.Args[1:]))

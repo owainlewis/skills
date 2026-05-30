@@ -32,7 +32,7 @@ Requires `git` on your PATH.
 ```sh
 skills init                        # write ~/.claude/skills.toml
 skills add owainlewis/blueprint    # pick skills + agents interactively, then install
-skills list                        # show what's installed, per agent
+skills list                        # one row per skill, with its agents
 skills sync                        # make every target match the manifest
 skills update                      # pull latest commits everywhere
 ```
@@ -51,6 +51,41 @@ To run it non-interactively (scripts, CI, agents), pass the choices as flags:
 ```sh
 skills add owainlewis/blueprint --agent claude,hermes --skill commit,review --global --yes
 ```
+
+## Example: install the blueprint skills
+
+[owainlewis/blueprint](https://github.com/owainlewis/blueprint) keeps a set of skills under
+its `skills/` directory (`commit`, `review`, `plan`, `tdd`, …). To install them:
+
+```sh
+# Interactive — pick which skills, which agents, and the scope:
+skills add owainlewis/blueprint
+
+# Non-interactive — all skills into claude + hermes + agents, global scope:
+skills add owainlewis/blueprint --agent claude,hermes,agents --global --yes
+
+# Just a few skills:
+skills add owainlewis/blueprint --skill commit,review,plan --global --yes
+```
+
+This writes one `[[skill]]` entry to your `skills.toml` and installs into each agent's
+directory. Afterwards:
+
+```sh
+skills list            # one row per skill, showing which agents have it
+skills update          # pull the latest blueprint commit into every agent
+```
+
+```
+$ skills list
+SKILL   AGENTS                SOURCE                COMMIT
+commit  agents,claude,hermes  owainlewis/blueprint  3d60e48
+plan    agents,claude,hermes  owainlewis/blueprint  3d60e48
+review  agents,claude,hermes  owainlewis/blueprint  3d60e48
+```
+
+(A missing install shows the agent prefixed with `!`, e.g. `!hermes`. Use `--json` for full
+per-agent detail.)
 
 ## Agents & scope
 
@@ -118,7 +153,7 @@ of that file's frontmatter, falling back to the directory name. When a source ha
 | `skills init` | Write a starter `skills.toml`. |
 | `skills add <source> [flags]` | Choose skills/agents/scope and install; record in the manifest. |
 | `skills remove <name>` | Uninstall a skill from every target and drop it from the manifest. |
-| `skills list [--json]` | List installed skills across all targets. |
+| `skills list [--json]` | List installed skills, one row per skill (`--json` for per-agent detail). |
 | `skills sync [--json] [--prune]` | Reconcile all targets with the manifest. |
 | `skills update [name...] [--json]` | Update installed skills to their latest commit. |
 | `skills agents [--json]` | List known agents and their directories. |
