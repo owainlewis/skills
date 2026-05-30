@@ -4,20 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/owainlewis/skills/internal/config"
 	"github.com/owainlewis/skills/internal/installer"
-	"github.com/owainlewis/skills/internal/manifest"
 )
 
 // Sync reconciles the installed set with the manifest: it (re)installs every
 // manifest entry to its ref's latest commit and, when prune is set, removes
-// installed skills no longer present in the manifest. Idempotent.
+// installed skills no longer present in the config. Idempotent.
 func Sync(ctx context.Context, e *Env, prune bool) error {
 	m, err := e.loadManifest()
 	if err != nil {
 		return err
 	}
 	dir := e.resolveDir(m)
-	lock, err := manifest.LoadLock(dir)
+	lock, err := config.LoadLock(dir)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func Sync(ctx context.Context, e *Env, prune bool) error {
 	}
 
 	if prune {
-		for _, in := range append([]manifest.Installed(nil), lock.Skills...) {
+		for _, in := range append([]config.Installed(nil), lock.Skills...) {
 			if managed[in.Name] {
 				continue
 			}

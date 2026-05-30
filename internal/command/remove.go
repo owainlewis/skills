@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/owainlewis/skills/internal/config"
 	"github.com/owainlewis/skills/internal/installer"
-	"github.com/owainlewis/skills/internal/manifest"
 )
 
 // Remove deletes an installed skill by name: it removes the installed directory,
@@ -20,7 +20,7 @@ func Remove(ctx context.Context, e *Env, name string) error {
 		return err
 	}
 	dir := e.resolveDir(m)
-	lock, err := manifest.LoadLock(dir)
+	lock, err := config.LoadLock(dir)
 	if err != nil {
 		return err
 	}

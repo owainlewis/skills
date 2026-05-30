@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/owainlewis/skills/internal/manifest"
+	"github.com/owainlewis/skills/internal/config"
 )
 
 // Update re-resolves installed skills to the latest commit for their recorded
@@ -17,7 +17,7 @@ func Update(ctx context.Context, e *Env, names []string) error {
 		return err
 	}
 	dir := e.resolveDir(m)
-	lock, err := manifest.LoadLock(dir)
+	lock, err := config.LoadLock(dir)
 	if err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func Update(ctx context.Context, e *Env, names []string) error {
 		for _, n := range names {
 			want[n] = true
 		}
-		var filtered []manifest.Installed
+		var filtered []config.Installed
 		for _, in := range lock.Skills {
 			if want[in.Name] {
 				filtered = append(filtered, in)
@@ -47,7 +47,7 @@ func Update(ctx context.Context, e *Env, names []string) error {
 	var all []Result
 	var failed int
 	for _, in := range work {
-		entry := manifest.Entry{Source: in.Source, Path: in.Path, Ref: in.Ref}
+		entry := config.Entry{Source: in.Source, Path: in.Path, Ref: in.Ref}
 		results, err := installEntry(ctx, e, dir, entry, lock)
 		if err != nil {
 			e.logf("error: %s: %v", in.Name, err)

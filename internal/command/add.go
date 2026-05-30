@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/owainlewis/skills/internal/manifest"
+	"github.com/owainlewis/skills/internal/config"
 )
 
 // AddOpts configures Add.
@@ -24,7 +24,7 @@ func Add(ctx context.Context, e *Env, opts AddOpts) error {
 	if err != nil {
 		return err
 	}
-	entry := manifest.Entry{Source: opts.Source, Path: opts.Path, Ref: opts.Ref}
+	entry := config.Entry{Source: opts.Source, Path: opts.Path, Ref: opts.Ref}
 	if replaced := m.Upsert(entry); replaced {
 		e.logf("updated manifest entry: %s", opts.Source)
 	} else {
@@ -38,7 +38,7 @@ func Add(ctx context.Context, e *Env, opts AddOpts) error {
 	}
 
 	dir := e.resolveDir(m)
-	lock, err := manifest.LoadLock(dir)
+	lock, err := config.LoadLock(dir)
 	if err != nil {
 		return err
 	}

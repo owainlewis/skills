@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/owainlewis/skills/internal/config"
 	"github.com/owainlewis/skills/internal/gitx"
 	"github.com/owainlewis/skills/internal/installer"
-	"github.com/owainlewis/skills/internal/manifest"
 	"github.com/owainlewis/skills/internal/skill"
 	"github.com/owainlewis/skills/internal/source"
 )
@@ -23,7 +23,7 @@ import (
 // Env carries shared configuration and I/O for a command invocation.
 type Env struct {
 	ConfigPath  string // path to skills.toml
-	DirOverride string // --dir / SKILLS_DIR; takes precedence over manifest.Dir
+	DirOverride string // --dir / SKILLS_DIR; takes precedence over config.Dir
 	JSON        bool
 	Out         io.Writer
 	Err         io.Writer
@@ -49,12 +49,12 @@ func (e *Env) emitJSON(v any) error {
 	return enc.Encode(v)
 }
 
-func (e *Env) loadManifest() (*manifest.Manifest, error) {
-	return manifest.Load(e.ConfigPath)
+func (e *Env) loadManifest() (*config.Manifest, error) {
+	return config.Load(e.ConfigPath)
 }
 
 // resolveDir picks the install directory: --dir override, else manifest, else default.
-func (e *Env) resolveDir(m *manifest.Manifest) string {
+func (e *Env) resolveDir(m *config.Manifest) string {
 	if e.DirOverride != "" {
 		return expandHome(e.DirOverride)
 	}
@@ -64,7 +64,7 @@ func (e *Env) resolveDir(m *manifest.Manifest) string {
 // installEntry clones one manifest entry, discovers its skill(s), installs each,
 // and records them in the lock. It returns one Result per skill. A prior lock
 // entry with the same commit yields status "unchanged".
-func installEntry(ctx context.Context, e *Env, dir string, entry manifest.Entry, lock *manifest.Lock) ([]Result, error) {
+func installEntry(ctx context.Context, e *Env, dir string, entry config.Entry, lock *config.Lock) ([]Result, error) {
 	src, err := source.Parse(entry.Source, entry.Path)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func installEntry(ctx context.Context, e *Env, dir string, entry manifest.Entry,
 				return nil, fmt.Errorf("install %s: %w", f.Name, err)
 			}
 		}
-		lock.Put(manifest.Installed{
+		lock.Put(config.Installed{
 			Name:        f.Name,
 			Source:      entry.Source,
 			Path:        entry.Path,

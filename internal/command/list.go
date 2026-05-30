@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"text/tabwriter"
 
-	"github.com/owainlewis/skills/internal/manifest"
+	"github.com/owainlewis/skills/internal/config"
 )
 
 // List prints installed skills from the lockfile. Status is "ok" when the
@@ -15,7 +15,7 @@ func List(e *Env) error {
 		return err
 	}
 	dir := e.resolveDir(m)
-	lock, err := manifest.LoadLock(dir)
+	lock, err := config.LoadLock(dir)
 	if err != nil {
 		return err
 	}
